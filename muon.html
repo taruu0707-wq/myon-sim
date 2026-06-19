@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ミューオン到達シミュレーション</title>
+</head>
+<body>
+  <p>コンソールを開いてください (F12)</p>
+<script>
+// ── 定数 ────────────────────────────────────────────────
+const C     = 2.998e8; // m/s
+const TAU0  = 2.2;     // μs (ミューオン固有寿命)
+
+// ── 1. γ の計算 ─────────────────────────────────────────
+function computeGamma(beta) {
+  return 1 / Math.sqrt(1 - beta * beta);
+}
+
+// ── 2. 地表系での移動時間 (μs) ──────────────────────────
+function computeTravelTime(H_km, beta) {
+  const H_m   = H_km * 1e3;
+  const v_ms  = beta * C;
+  return (H_m / v_ms) * 1e6; // s → μs
+}
+
+// ── 3. 崩壊時刻を指数分布でサンプリング (μs) ───────────
+function sampleDecayTimes(N, tau0_us) {
+  const times = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    let u;
+    do { u = Math.random(); } while (u === 0); // u ∈ (0,1]
+    times[i] = -tau0_us * Math.log(u);
+  }
+  return times;
+}
+
+// ── 4. 生存数カウント (t_decay > properTime なら生存) ───
+function countSurvivors(decayTimes, properTime_us) {
+  let count = 0;
+  for (let i = 0; i < decayTimes.length; i++) {
+    if (decayTimes[i] > properTime_us) count++;
+  }
+  return count;
+}
+
+// ── 5. 理論生存率 exp(-properTime / τ0) ─────────────────
+function theorySurvival(properTime_us, tau0_us) {
+  return Math.exp(-properTime_us / tau0_us);
+}
+
+// ── 6. シミュレーション本体 ──────────────────────────────
+function runSimulation({ H_km, beta, N }) {
+  const gamma    = computeGamma(beta);
+  const t_travel = computeTravelTime(H_km, beta); // μs (地表系)
+
+  const decayTimes = sampleDecayTimes(N, TAU0);
+
+  // 相対論なし: ミューオン固有時 = t_travel
+  const noRelProper    = t_travel;
+  const noRelSurvivors = countSurvivors(decayTimes, noRelProper);
+
+  // 相対論あり: ミューオン固有時 = t_travel / γ
+  const relProper      = t_travel / gamma;
+  const relSurvivors   = countSurvivors(decayTimes, relProper);
+
+  return {
+    gamma,
+    t_travel,
+    no_rel: {
+      properTime: noRelProper,
+      survivors:  noRelSurvivors,
+      rate:       noRelSurvivors / N,
+      theory:     theorySurvival(noRelProper, TAU0),
+    },
+    with_rel: {
+      properTime: relProper,
+      survivors:  relSurvivors,
+      rate:       relSurvivors / N,
+      theory:     theorySurvival(relProper, TAU0),
+    },
+  };
+}
+
+// ── 7. 結果を console.log で出力 ─────────────────────────
+function logResults(label, result) {
+  const { gamma, t_travel, no_rel: nr, with_rel: wr } = result;
+  console.group(`=== ${label} ===`);
+  console.log(`γ          = ${gamma.toFixed(5)}`);
+  console.log(`t_travel   = ${t_travel.toFixed(4)} μs  (地表系)`);
+  console.log(`--- 相対論なし ---`);
+  console.log(`  固有時間  = ${nr.properTime.toFixed(4)} μs`);
+  console.log(`  生存率(実測) = ${(nr.rate   * 100).toFixed(3)} %`);
+  console.log(`  生存率(理論) = ${(nr.theory * 100).toFixed(3)} %`);
+  console.log(`--- 相対論あり ---`);
+  console.log(`  固有時間  = ${wr.properTime.toFixed(4)} μs`);
+  console.log(`  生存率(実測) = ${(wr.rate   * 100).toFixed(3)} %`);
+  console.log(`  生存率(理論) = ${(wr.theory * 100).toFixed(3)} %`);
+  console.groupEnd();
+}
+
+// ════════════════════════════════════════════════════════
+// 動作確認
+// ════════════════════════════════════════════════════════
+
+// ケース1: 標準パラメータ (なし≒0%, あり=数十% を確認)
+logResults('H=15km, v=0.998c, N=10000',
+  runSimulation({ H_km: 15, beta: 0.998, N: 10000 }));
+
+// ケース2: v→0 検証 (γ≒1 → なし/あり の生存率が一致するはず)
+//   H を短くして両方に生存者が出る状況で比較
+logResults('検証: v=0.01c, H=0.1km, N=10000',
+  runSimulation({ H_km: 0.1, beta: 0.01, N: 10000 }));
+
+// ケース3: N を増やして理論値に近づくか確認
+logResults('N=100000 (大数の法則)',
+  runSimulation({ H_km: 15, beta: 0.998, N: 100000 }));
+
+</script>
+</body>
+</html>
