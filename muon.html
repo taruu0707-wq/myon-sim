@@ -3,9 +3,188 @@
 <head>
   <meta charset="UTF-8">
   <title>ミューオン到達シミュレーション</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #060c18;
+    color: #c8d8f0;
+    font-family: 'Courier New', Courier, monospace;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 1.3rem;
+    letter-spacing: 0.12em;
+    color: #90baff;
+    margin-bottom: 2rem;
+    text-shadow: 0 0 16px #4080ff55;
+  }
+
+  /* ── スライダー ── */
+  .controls {
+    max-width: 540px;
+    margin: 0 auto 2rem;
+    background: #0b1525;
+    border: 1px solid #1b3450;
+    border-radius: 10px;
+    padding: 1.4rem 1.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .slider-row {
+    display: grid;
+    grid-template-columns: 8rem 1fr 7rem;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .slider-label { font-size: 0.88rem; color: #7090b0; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #1b3450;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #4a9eff;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #4a9eff88;
+  }
+
+  .slider-val {
+    text-align: right;
+    font-size: 0.9rem;
+    color: #ddeeff;
+    font-weight: bold;
+  }
+
+  /* ── 結果 ── */
+  .results {
+    max-width: 540px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .gamma-box {
+    text-align: center;
+    background: #0b1525;
+    border: 1px solid #1b3450;
+    border-radius: 10px;
+    padding: 0.9rem;
+    font-size: 1.25rem;
+    color: #ffd060;
+    text-shadow: 0 0 10px #ffd06044;
+    letter-spacing: 0.05em;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .card {
+    background: #0b1525;
+    border: 1px solid #1b3450;
+    border-radius: 10px;
+    padding: 1.2rem;
+  }
+  .card.no-rel   { border-top: 3px solid #ff5555; }
+  .card.with-rel { border-top: 3px solid #44dd88; }
+
+  .card h2 {
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.9rem;
+  }
+  .card.no-rel   h2 { color: #ff7777; }
+  .card.with-rel h2 { color: #55ee99; }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.32rem 0;
+    border-bottom: 1px solid #162840;
+    font-size: 0.88rem;
+  }
+  .stat-row:last-child { border-bottom: none; }
+
+  .stat-label { color: #607090; }
+  .stat-val         { color: #ddeeff; font-weight: bold; }
+  .stat-val.theory  { color: #8aaac8; font-weight: normal; }
+</style>
 </head>
 <body>
-  <p>コンソールを開いてください (F12)</p>
+  <h1>ミューオン到達シミュレーション</h1>
+
+  <div class="controls">
+    <div class="slider-row">
+      <span class="slider-label">高度 H</span>
+      <input type="range" id="sl-H" min="1" max="30" step="1" value="15">
+      <span class="slider-val" id="val-H">15 km</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">速度 v</span>
+      <input type="range" id="sl-v" min="900" max="999" step="1" value="998">
+      <span class="slider-val" id="val-v">0.998 c</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">個数 N</span>
+      <input type="range" id="sl-N" min="1000" max="50000" step="1000" value="10000">
+      <span class="slider-val" id="val-N">10,000</span>
+    </div>
+  </div>
+
+  <div class="results">
+    <div class="gamma-box">
+      ローレンツ因子 &nbsp; &gamma; = <span id="disp-gamma">—</span>
+    </div>
+    <div class="cards">
+      <div class="card no-rel">
+        <h2>相対論なし</h2>
+        <div class="stat-row">
+          <span class="stat-label">実測生存率</span>
+          <span class="stat-val" id="nr-rate">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">理論値</span>
+          <span class="stat-val theory" id="nr-theory">—</span>
+        </div>
+      </div>
+      <div class="card with-rel">
+        <h2>相対論あり</h2>
+        <div class="stat-row">
+          <span class="stat-label">実測生存率</span>
+          <span class="stat-val" id="wr-rate">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">理論値</span>
+          <span class="stat-val theory" id="wr-theory">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     計算ロジック (変更なし)
+════════════════════════════════════════════════════════════ -->
 <script>
 // ── 定数 ────────────────────────────────────────────────
 const C     = 2.998e8; // m/s
@@ -97,24 +276,35 @@ function logResults(label, result) {
   console.log(`  生存率(理論) = ${(wr.theory * 100).toFixed(3)} %`);
   console.groupEnd();
 }
+</script>
 
-// ════════════════════════════════════════════════════════
-// 動作確認
-// ════════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════════════════
+     UI 配線 (追加)
+════════════════════════════════════════════════════════════ -->
+<script>
+function updateUI() {
+  const H_km = +document.getElementById('sl-H').value;
+  const beta  = document.getElementById('sl-v').value / 1000;
+  const N     = +document.getElementById('sl-N').value;
 
-// ケース1: 標準パラメータ (なし≒0%, あり=数十% を確認)
-logResults('H=15km, v=0.998c, N=10000',
-  runSimulation({ H_km: 15, beta: 0.998, N: 10000 }));
+  document.getElementById('val-H').textContent = `${H_km} km`;
+  document.getElementById('val-v').textContent = `${beta.toFixed(3)} c`;
+  document.getElementById('val-N').textContent = N.toLocaleString();
 
-// ケース2: v→0 検証 (γ≒1 → なし/あり の生存率が一致するはず)
-//   H を短くして両方に生存者が出る状況で比較
-logResults('検証: v=0.01c, H=0.1km, N=10000',
-  runSimulation({ H_km: 0.1, beta: 0.01, N: 10000 }));
+  const r = runSimulation({ H_km, beta, N });
 
-// ケース3: N を増やして理論値に近づくか確認
-logResults('N=100000 (大数の法則)',
-  runSimulation({ H_km: 15, beta: 0.998, N: 100000 }));
+  document.getElementById('disp-gamma').textContent = r.gamma.toFixed(4);
+  document.getElementById('nr-rate').textContent    = (r.no_rel.rate    * 100).toFixed(2) + ' %';
+  document.getElementById('nr-theory').textContent  = (r.no_rel.theory  * 100).toFixed(2) + ' %';
+  document.getElementById('wr-rate').textContent    = (r.with_rel.rate   * 100).toFixed(2) + ' %';
+  document.getElementById('wr-theory').textContent  = (r.with_rel.theory * 100).toFixed(2) + ' %';
+}
 
+['sl-H', 'sl-v', 'sl-N'].forEach(id =>
+  document.getElementById(id).addEventListener('input', updateUI)
+);
+
+updateUI(); // 初期表示
 </script>
 </body>
 </html>
