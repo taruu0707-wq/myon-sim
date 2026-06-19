@@ -129,6 +129,21 @@
   .stat-label { color: #607090; }
   .stat-val         { color: #ddeeff; font-weight: bold; }
   .stat-val.theory  { color: #8aaac8; font-weight: normal; }
+
+  /* ── Canvas パネル ── */
+  .vis-section {
+    max-width: 540px;
+    margin: 1.2rem auto 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .vis-section canvas {
+    display: block;
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid #1b3450;
+  }
 </style>
 </head>
 <body>
@@ -180,6 +195,11 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="vis-section">
+    <canvas id="canvas-nr"></canvas>
+    <canvas id="canvas-wr"></canvas>
   </div>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -298,6 +318,8 @@ function updateUI() {
   document.getElementById('nr-theory').textContent  = (r.no_rel.theory  * 100).toFixed(2) + ' %';
   document.getElementById('wr-rate').textContent    = (r.with_rel.rate   * 100).toFixed(2) + ' %';
   document.getElementById('wr-theory').textContent  = (r.with_rel.theory * 100).toFixed(2) + ' %';
+
+  startAnimation(H_km, beta, N);
 }
 
 ['sl-H', 'sl-v', 'sl-N'].forEach(id =>
@@ -305,6 +327,147 @@ function updateUI() {
 );
 
 updateUI(); // 初期表示
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Canvas アニメーション (追加)
+════════════════════════════════════════════════════════════ -->
+<script>
+const ANIM_MS     = 4000; // アニメーション時間 (ms)
+const VIS_MAX     = 200;  // 描画する粒子の上限
+const LABEL_H     = 22;   // パネル上部ラベル領域
+const GROUND_PX   = 28;   // 地面の厚み
+const P_RADIUS    = 2.5;  // 粒子の半径
+const DEATH_FADE  = 0.07; // 崩壊フラッシュの長さ (progress単位)
+
+let _particles = [];  // 可視化用粒子: { x, fnr, fwr }
+let _animId    = null;
+let _animT0    = null;
+
+// Canvas のピクセルサイズを DOM の実幅に合わせる
+function _resizeCanvas(c) {
+  const w = c.parentElement.clientWidth;
+  if (c.width !== w) { c.width = w; c.height = Math.round(w * 1.55); }
+}
+
+// 可視化用に別サンプルを生成 (統計用 runSimulation とは独立)
+function _buildParticles(vis_N, t_travel, gamma) {
+  const cnr = document.getElementById('canvas-nr');
+  const W   = cnr.width;
+  const arr = [];
+  for (let i = 0; i < vis_N; i++) {
+    let u;
+    do { u = Math.random(); } while (u === 0);
+    const td = -TAU0 * Math.log(u); // 崩壊時刻 (μs)
+    arr.push({
+      x:   4 + Math.random() * (W - 8),
+      fnr: td / t_travel,           // 無相対論: 崩壊する progress
+      fwr: (td * gamma) / t_travel, // 相対論あり: 崩壊する progress
+    });
+  }
+  return arr;
+}
+
+function _drawPanel(ctx, W, H, fracKey, label, accentColor, prog) {
+  ctx.clearRect(0, 0, W, H);
+
+  // 空のグラデーション
+  const sky = ctx.createLinearGradient(0, 0, 0, H - GROUND_PX);
+  sky.addColorStop(0, '#030710');
+  sky.addColorStop(1, '#091828');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H - GROUND_PX);
+
+  // 地面
+  ctx.fillStyle = '#162810';
+  ctx.fillRect(0, H - GROUND_PX, W, GROUND_PX);
+  ctx.strokeStyle = '#3a6020';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, H - GROUND_PX);
+  ctx.lineTo(W, H - GROUND_PX);
+  ctx.stroke();
+
+  // パネルラベル
+  ctx.fillStyle = accentColor;
+  ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, W / 2, 15);
+
+  const drawH = H - LABEL_H - GROUND_PX;
+
+  _particles.forEach(p => {
+    const frac    = p[fracKey];
+    const alive   = prog <= frac;
+    const survived = frac >= 1;
+    const sinceDecay = prog - frac;
+
+    // 完全に消滅済み
+    if (!alive && sinceDecay > DEATH_FADE) return;
+
+    const posY = LABEL_H + Math.min(prog, frac, 1) * drawH;
+
+    ctx.beginPath();
+    ctx.arc(p.x, posY, P_RADIUS, 0, Math.PI * 2);
+
+    if (!alive) {
+      // 崩壊フラッシュ: オレンジが DEATH_FADE かけて消える
+      const a = 1 - sinceDecay / DEATH_FADE;
+      ctx.fillStyle = `rgba(255,130,40,${a.toFixed(2)})`;
+      ctx.shadowColor = '#ff8228';
+      ctx.shadowBlur  = 8;
+    } else if (survived && prog >= 1) {
+      // 地表到達: 緑グロー
+      ctx.fillStyle   = '#44ff88';
+      ctx.shadowColor = '#44ff88';
+      ctx.shadowBlur  = 12;
+    } else {
+      // 降下中
+      ctx.fillStyle   = '#7fc8ff';
+      ctx.shadowColor = '#4a9eff';
+      ctx.shadowBlur  = 3;
+    }
+
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+}
+
+function _animLoop(ts) {
+  if (!_animT0) _animT0 = ts;
+  const prog = Math.min((ts - _animT0) / ANIM_MS, 1);
+
+  const cnr = document.getElementById('canvas-nr');
+  const cwr = document.getElementById('canvas-wr');
+  _resizeCanvas(cnr);
+  _resizeCanvas(cwr);
+
+  _drawPanel(cnr.getContext('2d'), cnr.width, cnr.height,
+             'fnr', '相対論なし', '#ff7777', prog);
+  _drawPanel(cwr.getContext('2d'), cwr.width, cwr.height,
+             'fwr', '相対論あり', '#55ee99', prog);
+
+  if (prog < 1) {
+    _animId = requestAnimationFrame(_animLoop);
+  }
+}
+
+function startAnimation(H_km, beta, N) {
+  if (_animId) { cancelAnimationFrame(_animId); _animId = null; }
+  _animT0 = null;
+
+  const gamma    = computeGamma(beta);
+  const t_travel = computeTravelTime(H_km, beta);
+  const vis_N    = Math.min(N, VIS_MAX);
+
+  // Canvas サイズを確定してから粒子を生成 (x 座標のため)
+  const cnr = document.getElementById('canvas-nr');
+  _resizeCanvas(cnr);
+  _resizeCanvas(document.getElementById('canvas-wr'));
+
+  _particles = _buildParticles(vis_N, t_travel, gamma);
+  _animId    = requestAnimationFrame(_animLoop);
+}
 </script>
 </body>
 </html>
