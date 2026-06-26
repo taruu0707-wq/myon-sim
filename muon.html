@@ -214,8 +214,6 @@
     </div>
   </div>
 
-  <button class="replay-btn" id="btn-replay">▶ 再生</button>
-
   <div class="vis-section">
     <canvas id="canvas-nr"></canvas>
     <canvas id="canvas-wr"></canvas>
@@ -344,13 +342,6 @@ function updateUI() {
 ['sl-H', 'sl-v', 'sl-N'].forEach(id =>
   document.getElementById(id).addEventListener('input', updateUI)
 );
-
-document.getElementById('btn-replay').addEventListener('click', () => {
-  const H_km = +document.getElementById('sl-H').value;
-  const beta  = document.getElementById('sl-v').value / 1000;
-  const N     = +document.getElementById('sl-N').value;
-  startAnimation(H_km, beta, N);
-});
 
 updateUI(); // 初期表示
 </script>
