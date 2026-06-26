@@ -130,6 +130,23 @@
   .stat-val         { color: #ddeeff; font-weight: bold; }
   .stat-val.theory  { color: #8aaac8; font-weight: normal; }
 
+  /* ── 再生ボタン ── */
+  .replay-btn {
+    display: block;
+    margin: 0 auto 1.2rem;
+    padding: 0.5rem 2rem;
+    background: #0b1525;
+    border: 1px solid #1b3450;
+    border-radius: 8px;
+    color: #90baff;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .replay-btn:hover { border-color: #4a9eff; color: #ddeeff; }
+
   /* ── Canvas パネル ── */
   .vis-section {
     max-width: 540px;
@@ -196,6 +213,8 @@
       </div>
     </div>
   </div>
+
+  <button class="replay-btn" id="btn-replay">▶ 再生</button>
 
   <div class="vis-section">
     <canvas id="canvas-nr"></canvas>
@@ -325,6 +344,13 @@ function updateUI() {
 ['sl-H', 'sl-v', 'sl-N'].forEach(id =>
   document.getElementById(id).addEventListener('input', updateUI)
 );
+
+document.getElementById('btn-replay').addEventListener('click', () => {
+  const H_km = +document.getElementById('sl-H').value;
+  const beta  = document.getElementById('sl-v').value / 1000;
+  const N     = +document.getElementById('sl-N').value;
+  startAnimation(H_km, beta, N);
+});
 
 updateUI(); // 初期表示
 </script>
